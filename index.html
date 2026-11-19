@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Word Defense · 森林小屋</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0c1719;color:#ebf7ef;font:16px/1.5 system-ui,sans-serif}main{height:100vh;height:100dvh;display:grid;place-items:center}canvas{display:block;width:min(100vw,177.778vh);width:min(100vw,177.778dvh);height:auto;aspect-ratio:16/9;background:#111b21;touch-action:none}section{position:fixed;inset:0;display:grid;place-content:center;text-align:center;padding:1.25rem;background:#102020ee}section[hidden]{display:none}h1{font:44px Georgia,serif;margin:0}p{max-width:30em}button{font:inherit;border:0;border-radius:4px;background:#abecd1;color:#132a29;min-height:46px;padding:.6em 1.25em;cursor:pointer}button+button{margin:.4em;background:#edf5e4}#help{position:fixed;bottom:3px;left:50%;transform:translateX(-50%);max-width:96vw;margin:0;font:13px/1.4 system-ui;text-align:center;color:#f2f6e9;background:#10272de8;padding:3px 8px;pointer-events:none}button:disabled{opacity:.6}button:disabled{cursor:wait}button:focus-visible{outline:3px solid white}video{position:fixed;width:1px;height:1px;opacity:0;pointer-events:none}
+</style></head><body><main><canvas id="game" width="960" height="540" tabindex="0" aria-label="Word Defense 游戏画面"></canvas></main><video id="camera" muted playsinline aria-hidden="true"></video><section id="entry"><div><h1>Word Defense</h1><p id="status" role="status">把设备横过来，留出能同时看见两只手的距离。摄像头画面只在当前浏览器中处理。</p><button id="start" disabled>开启摄像头并开始</button><button id="pointer" disabled>鼠标或触屏开始</button></div></section><p id="help" hidden>在蓝线下移动弹力带，字母碰到带子时向上划。</p>
+<script src="Build/WordDefense-Web.loader.js"></script><script type="module">
+import {startPointer} from './pointer.mjs';
+import {loadSceneData} from './scene-data.mjs';
+const canvas=document.querySelector('#game'),entry=document.querySelector('#entry'),status=document.querySelector('#status'),help=document.querySelector('#help');
+const buttons=Array.from(document.querySelectorAll('button'));
+let game, cameraApi, stopPointer, mode;
+function cleanInput(){stopPointer?.();stopPointer=null;cameraApi?.stopHands();help.hidden=true;}
+async function start(selected){
+ buttons.forEach(b=>b.disabled=true);
+ cleanInput();
+ mode=selected;
+ try {
+  if(mode==='camera'){
+   status.textContent='正在开启摄像头并载入双手识别模型…';
+   cameraApi??=await import('./hands.mjs');
+   await cameraApi.startHands(document.querySelector('#camera'),message=>{entry.hidden=false;status.textContent=message;});
+  }else{
+   stopPointer=startPointer(canvas);
+  }
+  if(!game){
+   const config={dataUrl:'Build/WordDefense-Web.data.unityweb',frameworkUrl:'Build/WordDefense-Web.framework.js.unityweb',codeUrl:'Build/WordDefense-Web.wasm.unityweb',streamingAssetsUrl:'StreamingAssets',companyName:'Word Defense',productName:'Word Defense',productVersion:'1',devicePixelRatio:Math.min(window.devicePixelRatio||1,1.5)};
+   const packedData=await loadSceneData(percent=>{status.textContent='正在下载游戏场景 '+percent+'%';});
+   config.dataUrl=packedData;
+   try {
+    game=await createUnityInstance(canvas,config,p=>{status.textContent='正在启动 Unity '+Math.round(p*100)+'%';});
+   } finally {URL.revokeObjectURL(packedData);}
+  }
+  if(mode==='pointer'||window.wordDefenseCameraActive){entry.hidden=true;canvas.focus();if(mode==='pointer'){help.hidden=false;setTimeout(()=>{help.hidden=true;},11000);}}
+ } catch(error){
+  cleanInput();
+  const messages={NotAllowedError:'请在浏览器中允许使用摄像头，再点一次开始。',NotFoundError:'没有找到摄像头。请连接摄像头后再试。',NotReadableError:'摄像头正在被占用。关闭其他使用摄像头的应用后再试。'};
+  status.textContent=messages[error.name]||('启动失败，请重试。'+(error.message||String(error)));
+ } finally {buttons.forEach(b=>b.disabled=false);}
+}
+document.querySelector('#start').onclick=()=>start('camera');
+document.querySelector('#pointer').onclick=()=>start('pointer');
+buttons.forEach(b=>b.disabled=false);
+window.addEventListener('pagehide',cleanInput);
+window.addEventListener('pageshow',e=>{if(e.persisted){entry.hidden=false;buttons.forEach(b=>b.disabled=false);}});
+</script></body></html>
