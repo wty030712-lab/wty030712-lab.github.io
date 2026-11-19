@@ -10,11 +10,20 @@ const canvas=document.querySelector('#game'),entry=document.querySelector('#entr
 const buttons=Array.from(document.querySelectorAll('button'));
 let game, cameraApi, stopPointer, mode;
 function cleanInput(){stopPointer?.();stopPointer=null;cameraApi?.stopHands();help.hidden=true;}
+const downloader = (async () => {
+ if (!('serviceWorker' in navigator) || navigator.serviceWorker.controller) return;
+ try {
+  const changed = new Promise(resolve => navigator.serviceWorker.addEventListener('controllerchange', resolve, {once:true}));
+  await navigator.serviceWorker.register('./game-download-worker.js');
+  if (!navigator.serviceWorker.controller) await changed;
+ } catch {}
+})();
 async function start(selected){
  buttons.forEach(b=>b.disabled=true);
  cleanInput();
  mode=selected;
  try {
+  await Promise.race([downloader,new Promise(resolve=>setTimeout(resolve,3500))]);
   if(mode==='camera'){
    status.textContent='正在开启摄像头并载入双手识别模型…';
    cameraApi??=await import('./hands.mjs');
